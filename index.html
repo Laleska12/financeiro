@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financeiro 💜</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
+        body { background: #0f0f14; color: white; padding-bottom: 80px; }
+        header { background: linear-gradient(120deg, #7b2cff, #b76bff); padding: 25px; border-radius: 0 0 30px 30px; text-align: center; }
+        .saldo { margin-top: 10px; font-size: 30px; font-weight: 700; }
+        .cards { padding: 15px; }
+        .card { background: #1c1c28; border-radius: 18px; padding: 15px; margin-bottom: 15px; }
+        .flex { display: flex; justify-content: space-between; align-items: center; }
+        .circle { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .receita { background: #2ecc71; }
+        .gasto { background: #e74c3c; }
+        
+        .menu { position: fixed; bottom: 0; width: 100%; display: flex; background: #141420; border-top: 1px solid #333; z-index: 100; }
+        .menu button { flex: 1; background: none; border: none; color: white; padding: 15px; font-size: 20px; cursor: pointer; }
+        
+        .add-pdf { position: fixed; bottom: 80px; right: 20px; background: #2ecc71; border: none; border-radius: 50%; width: 50px; height: 50px; font-size: 20px; color: white; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        
+        input, select { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; background: #2a2a3a; color: white; }
+        .lista div { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding: 8px; border-bottom: 1px solid #333; }
+        .lista button { background: #e74c3c; border: none; color: white; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+        header {
+    position: relative;
+    overflow: hidden;
+    padding: 0;
+    border-radius: 0 0 30px 30px;
+}
+
+.capa {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    filter: brightness(0.6);
+}
+
+.header-texto {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+.header-texto h1 {
+    font-size: 28px;
+}
+
+.saldo {
+    font-size: 30px;
+    font-weight: 700;
+}
+
+    </style>
+</head>
+
+<body>  
+
+<div id="loginBox" style="position:fixed;top:0;left:0;width:100%;height:100%; background:#0f0f14;display:flex;align-items:center;justify-content:center; flex-direction:column;z-index:9999">
+    <h2>Digite a senha</h2>
+    <input id="senhaInput" type="password" placeholder="Senha" style="width: 200px; text-align: center;">
+    <button onclick="verificarSenha()" style="margin-top:15px; padding:10px 30px; background:#b76bff; border:none; border-radius:8px; color:white; cursor:pointer;">Entrar</button>
+</div>
+
+<header>
+    <img src="imagens/financeiro.png" class="capa">
+
+    <div class="header-texto">
+        <h1>Financeiro 💜</h1>
+        <div class="saldo">R$ <span id="saldoTxt">0.00</span></div>
+    </div>
+</header>
+
+
+<div class="cards" id="dashboard">
+    <div class="card flex">
+        <div><b>Receitas</b><br>R$ <span id="receitasTxt" style="color: #2ecc71;">0.00</span></div>
+        <div class="circle receita">⬆</div>
+    </div>
+
+    <div class="card flex">
+        <div><b>Despesas</b><br>R$ <span id="despesasTxt" style="color: #e74c3c;">0.00</span></div>
+        <div class="circle gasto">⬇</div>
+    </div>
+
+    <div class="card"><canvas id="grafico"></canvas></div>
+    <div class="card lista" id="listaContainer"></div>
+</div>
+
+<div class="cards" id="formArea" style="display:none">
+    <div class="card">
+        <h3>Nova Movimentação</h3>
+        <input id="nome" placeholder="Descrição (ex: Aluguel)">
+        <input id="valor" type="number" step="0.01" placeholder="Valor (ex: 150.00)">
+        <select id="tipo">
+            <option value="entrada">Entrada (+)</option>
+            <option value="gasto">Gasto (-)</option>
+        </select>
+        <button onclick="add()" style="margin-top:20px; padding:15px; background:#b76bff; border:none; border-radius:8px; width:100%; color: white; font-weight: bold; cursor: pointer;">Salvar</button>
+    </div>
+</div>
+
+<div class="menu">
+    <button onclick="abrirDash()">🏠</button>
+    <button onclick="abrirForm()">➕</button>
+</div>
+
+<button class="add-pdf" onclick="baixarPDF()" title="Exportar PDF">📄</button>
+
+<script>
+    const SENHA_CORRETA = "Laleska12";
+    let dados = JSON.parse(localStorage.getItem('fin_dados') || "[]");
+    let chart;
+
+    function verificarSenha() {
+        const senha = document.getElementById("senhaInput").value;
+        if (senha === SENHA_CORRETA) {
+            document.getElementById("loginBox").style.display = "none";
+            render();
+        } else {
+            alert("Senha incorreta!");
+        }
+    }
+
+    function salvar() {
+        localStorage.setItem('fin_dados', JSON.stringify(dados));
+    }
+
+    function abrirForm() {
+        document.getElementById('dashboard').style.display = 'none';
+        document.getElementById('formArea').style.display = 'block';
+    }
+
+    function abrirDash() {
+        document.getElementById('dashboard').style.display = 'block';
+        document.getElementById('formArea').style.display = 'none';
+        render();
+    }
+
+    function add() {
+        const nomeInput = document.getElementById("nome");
+        const valorInput = document.getElementById("valor");
+        const tipoInput = document.getElementById("tipo");
+
+        let n = nomeInput.value.trim();
+        let v = parseFloat(valorInput.value);
+
+        if (!n || isNaN(v) || v <= 0) {
+            alert("Preencha os campos corretamente!");
+            return;
+        }
+
+        dados.push({ nome: n, valor: v, tipo: tipoInput.value });
+        salvar();
+        
+        nomeInput.value = "";
+        valorInput.value = "";
+        abrirDash();
+    }
+
+    function remover(index) {
+        if(confirm("Deseja excluir este item?")) {
+            dados.splice(index, 1);
+            salvar();
+            render();
+        }
+    }
+
+    function render() {
+        const lista = document.getElementById("listaContainer");
+        const entTxt = document.getElementById("receitasTxt");
+        const gasTxt = document.getElementById("despesasTxt");
+        const saldoTxt = document.getElementById("saldoTxt");
+
+        let ent = dados.filter(d => d.tipo === "entrada").reduce((a, b) => a + b.valor, 0);
+        let gas = dados.filter(d => d.tipo === "gasto").reduce((a, b) => a + b.valor, 0);
+
+        saldoTxt.innerText = (ent - gas).toLocaleString('pt-br', {minimumFractionDigits: 2});
+        entTxt.innerText = ent.toLocaleString('pt-br', {minimumFractionDigits: 2});
+        gasTxt.innerText = gas.toLocaleString('pt-br', {minimumFractionDigits: 2});
+
+        lista.innerHTML = dados.length === 0 ? "<p style='text-align:center; opacity:0.5'>Nenhum registro.</p>" : "";
+
+        dados.forEach((d, i) => {
+            lista.innerHTML += `
+                <div>
+                    <span>${d.tipo === "entrada" ? "💰" : "📉"} <b>${d.nome}</b></span>
+                    <span>R$ ${d.valor.toFixed(2)} <button onclick="remover(${i})">X</button></span>
+                </div>`;
+        });
+
+        // Atualizar Gráfico
+        if (chart) chart.destroy();
+        const ctx = document.getElementById("grafico").getContext('2d');
+        chart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Receitas', 'Despesas'],
+                datasets: [{
+                    data: [ent, gas],
+                    backgroundColor: ['#2ecc71', '#e74c3c'],
+                    borderWidth: 0
+                }]
+            },
+            options: { plugins: { legend: { labels: { color: 'white' } } } }
+        });
+    }
+
+    function baixarPDF() {
+        const { jsPDF } = window.jspdf;
+        let doc = new jsPDF();
+        
+        doc.setFontSize(20);
+        doc.text("Relatório Financeiro", 10, 20);
+        
+        doc.setFontSize(12);
+        let y = 40;
+        
+        dados.forEach((d, i) => {
+            let info = `${i+1}. ${d.nome} - R$ ${d.valor.toFixed(2)} (${d.tipo})`;
+            doc.text(info, 10, y);
+            y += 10;
+        });
+
+        doc.save("financeiro.pdf");
+    }
+
+    // Tentar carregar se já estiver logado (opcional) ou esperar o login
+</script>
+</body>
+</html>
